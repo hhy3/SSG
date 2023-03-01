@@ -5,7 +5,9 @@
 #ifndef EFANNA2E_DISTANCE_H
 #define EFANNA2E_DISTANCE_H
 
+#include <immintrin.h>
 #include <x86intrin.h>
+
 #include <iostream>
 namespace efanna2e {
 enum Metric { L2 = 0, INNER_PRODUCT = 1, FAST_L2 = 2, PQ = 3 };
@@ -101,8 +103,8 @@ class DistanceL2 : public Distance {
 #else
 
     float diff0, diff1, diff2, diff3;
-    const float* last = a + size;
-    const float* unroll_group = last - 3;
+    const float *last = a + size;
+    const float *unroll_group = last - 3;
 
     /* Process 4 items with each loop for efficiency. */
     while (a < unroll_group) {
@@ -129,103 +131,23 @@ class DistanceL2 : public Distance {
 
 class DistanceInnerProduct : public Distance {
  public:
-  float compare(const float *a, const float *b, unsigned size) const {
-    float result = 0;
-#ifdef __GNUC__
-#ifdef __AVX__
-#define AVX_DOT(addr1, addr2, dest, tmp1, tmp2) \
-  tmp1 = _mm256_loadu_ps(addr1);                \
-  tmp2 = _mm256_loadu_ps(addr2);                \
-  tmp1 = _mm256_mul_ps(tmp1, tmp2);             \
-  dest = _mm256_add_ps(dest, tmp1);
-
-    __m256 sum;
-    __m256 l0, l1;
-    __m256 r0, r1;
-    unsigned D = (size + 7) & ~7U;
-    unsigned DR = D % 16;
-    unsigned DD = D - DR;
-    const float *l = a;
-    const float *r = b;
-    const float *e_l = l + DD;
-    const float *e_r = r + DD;
-    float unpack[8] __attribute__((aligned(32))) = {0, 0, 0, 0, 0, 0, 0, 0};
-
-    sum = _mm256_loadu_ps(unpack);
-    if (DR) {
-      AVX_DOT(e_l, e_r, sum, l0, r0);
+  float compare(const float *x, const float *y, unsigned size) const {
+    __m512 sum1 = _mm512_setzero_ps();
+    const float *end = x + d;
+    while (x < end) {
+      auto xx = _mm512_loadu_ps(x);
+      x += 16;
+      auto yy = _mm512_loadu_ps(y);
+      y += 16;
+      sum1 = _mm512_add_ps(sum1, _mm512_mul_ps(xx, yy));
     }
-
-    for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
-      AVX_DOT(l, r, sum, l0, r0);
-      AVX_DOT(l + 8, r + 8, sum, l1, r1);
-    }
-    _mm256_storeu_ps(unpack, sum);
-    result = unpack[0] + unpack[1] + unpack[2] + unpack[3] + unpack[4] +
-             unpack[5] + unpack[6] + unpack[7];
-
-#else
-#ifdef __SSE2__
-#define SSE_DOT(addr1, addr2, dest, tmp1, tmp2) \
-  tmp1 = _mm_loadu_ps(addr1);                \
-  tmp2 = _mm_loadu_ps(addr2);                \
-  tmp1 = _mm_mul_ps(tmp1, tmp2);             \
-  dest = _mm_add_ps(dest, tmp1);
-    __m128 sum;
-    __m128 l0, l1, l2, l3;
-    __m128 r0, r1, r2, r3;
-    unsigned D = (size + 3) & ~3U;
-    unsigned DR = D % 16;
-    unsigned DD = D - DR;
-    const float *l = a;
-    const float *r = b;
-    const float *e_l = l + DD;
-    const float *e_r = r + DD;
-    float unpack[4] __attribute__((aligned(16))) = {0, 0, 0, 0};
-
-    sum = _mm_load_ps(unpack);
-    switch (DR) {
-      case 12:
-        SSE_DOT(e_l + 8, e_r + 8, sum, l2, r2);
-      case 8:
-        SSE_DOT(e_l + 4, e_r + 4, sum, l1, r1);
-      case 4:
-        SSE_DOT(e_l, e_r, sum, l0, r0);
-      default:
-        break;
-    }
-    for (unsigned i = 0; i < DD; i += 16, l += 16, r += 16) {
-      SSE_DOT(l, r, sum, l0, r0);
-      SSE_DOT(l + 4, r + 4, sum, l1, r1);
-      SSE_DOT(l + 8, r + 8, sum, l2, r2);
-      SSE_DOT(l + 12, r + 12, sum, l3, r3);
-    }
-    _mm_storeu_ps(unpack, sum);
-    result += unpack[0] + unpack[1] + unpack[2] + unpack[3];
-#else
-
-    float dot0, dot1, dot2, dot3;
-    const float* last = a + size;
-    const float* unroll_group = last - 3;
-
-    /* Process 4 items with each loop for efficiency. */
-    while (a < unroll_group) {
-      dot0 = a[0] * b[0];
-      dot1 = a[1] * b[1];
-      dot2 = a[2] * b[2];
-      dot3 = a[3] * b[3];
-      result += dot0 + dot1 + dot2 + dot3;
-      a += 4;
-      b += 4;
-    }
-    /* Process last 0-3 pixels.  Not needed for standard vector lengths. */
-    while (a < last) {
-      result += *a++ * *b++;
-    }
-#endif
-#endif
-#endif
-    return result;
+    auto sumh = _mm256_add_ps(_mm512_castps512_ps256(sum1),
+                              _mm512_extractf32x8_ps(sum1, 1));
+    auto sumhh = _mm_add_ps(_mm256_castps256_ps128(sumh),
+                            _mm256_extractf128_ps(sumh, 1));
+    auto tmp1 = _mm_add_ps(sumhh, _mm_movehl_ps(sumhh, sumhh));
+    auto tmp2 = _mm_add_ps(tmp1, _mm_movehdup_ps(tmp1));
+    return _mm_cvtss_f32(tmp2);
   }
 };
 class DistanceFastL2 : public DistanceInnerProduct {
@@ -262,8 +184,8 @@ class DistanceFastL2 : public DistanceInnerProduct {
 #else
 #ifdef __SSE2__
 #define SSE_L2NORM(addr, dest, tmp) \
-  tmp = _mm_loadu_ps(addr);      \
-  tmp = _mm_mul_ps(tmp, tmp);    \
+  tmp = _mm_loadu_ps(addr);         \
+  tmp = _mm_mul_ps(tmp, tmp);       \
   dest = _mm_add_ps(dest, tmp);
 
     __m128 sum;
@@ -296,8 +218,8 @@ class DistanceFastL2 : public DistanceInnerProduct {
     result += unpack[0] + unpack[1] + unpack[2] + unpack[3];
 #else
     float dot0, dot1, dot2, dot3;
-    const float* last = a + size;
-    const float* unroll_group = last - 3;
+    const float *last = a + size;
+    const float *unroll_group = last - 3;
 
     /* Process 4 items with each loop for efficiency. */
     while (a < unroll_group) {

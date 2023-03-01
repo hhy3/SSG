@@ -26,9 +26,9 @@ endif()
 # Python binding
 add_subdirectory(third_party/pybind11)
 
+# Compile flags
+add_definitions(-std=c++17 -O3 -lboost -ltcmalloc_minimal -march=native -Wall -DINFO)
+
 # Source codes
 add_subdirectory(src)
 add_subdirectory(tests)
-
-# Compile flags
-add_definitions(-std=c++17 -O3 -lboost -ltcmalloc_minimal -march=native -Wall -DINFO)
