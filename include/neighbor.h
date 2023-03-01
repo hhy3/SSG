@@ -174,7 +174,7 @@ class NeighborSet {
       }
     }
     std::memmove(&data_[lo + 1], &data_[lo], (size_ - lo) * sizeof(Neighbor));
-    data_[lo] = {nbr.id, nbr.distance, false};
+    data_[lo] = {nbr.id, nbr.distance, true};
     if (size_ < capacity_) {
       size_++;
     }
@@ -183,13 +183,13 @@ class NeighborSet {
     }
   }
 
-  SimpleNeighbor pop() {
+  int pop() {
     data_[cur_].flag = false;
     size_t pre = cur_;
     while (cur_ < size_ && !data_[cur_].flag) {
       cur_++;
     }
-    return {data_[pre].id, data_[pre].distance};
+    return data_[pre].id;
   }
 
   bool has_next() const { return cur_ < size_; }

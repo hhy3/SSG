@@ -489,12 +489,10 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
   }
 
   while (retset.has_next()) {
-    auto [u, dist] = retset.pop();
+    int u = retset.pop();
     unsigned *neighbors = (unsigned *)(opt_graph_ + node_size * u + data_len);
     unsigned MaxM = *neighbors;
     neighbors++;
-    for (unsigned m = 0; m < MaxM; ++m)
-      _mm_prefetch(opt_graph_ + node_size * neighbors[m], _MM_HINT_T0);
     for (unsigned m = 0; m < MaxM; ++m) {
       unsigned v = neighbors[m];
       if (vis[v]) continue;
