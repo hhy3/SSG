@@ -1,13 +1,16 @@
 #include "index_ssg.h"
 
 #include <omp.h>
+
 #include <bitset>
+#include <boost/dynamic_bitset.hpp>
 #include <chrono>
 #include <cmath>
 #include <queue>
-#include <boost/dynamic_bitset.hpp>
 
 #include "exceptions.h"
+#include "index_graph.h"
+#include "index_random.h"
 #include "parameters.h"
 
 constexpr double kPi = 3.14159265358979323846264;
@@ -27,9 +30,9 @@ void IndexSSG::Save(const char *filename) {
   assert(final_graph_.size() == nd_);
 
   out.write((char *)&width, sizeof(unsigned));
-  unsigned n_ep=eps_.size();
+  unsigned n_ep = eps_.size();
   out.write((char *)&n_ep, sizeof(unsigned));
-  out.write((char *)eps_.data(), n_ep*sizeof(unsigned));
+  out.write((char *)eps_.data(), n_ep * sizeof(unsigned));
   for (unsigned i = 0; i < nd_; i++) {
     unsigned GK = (unsigned)final_graph_[i].size();
     out.write((char *)&GK, sizeof(unsigned));
@@ -41,10 +44,10 @@ void IndexSSG::Save(const char *filename) {
 void IndexSSG::Load(const char *filename) {
   std::ifstream in(filename, std::ios::binary);
   in.read((char *)&width, sizeof(unsigned));
-  unsigned n_ep=0;
+  unsigned n_ep = 0;
   in.read((char *)&n_ep, sizeof(unsigned));
   eps_.resize(n_ep);
-  in.read((char *)eps_.data(), n_ep*sizeof(unsigned));
+  in.read((char *)eps_.data(), n_ep * sizeof(unsigned));
   // width=100;
   unsigned cc = 0;
   while (!in.eof()) {
@@ -347,9 +350,18 @@ void IndexSSG::Link(const Parameters &parameters, SimpleNeighbor *cut_graph_) {
 
 void IndexSSG::Build(size_t n, const float *data,
                      const Parameters &parameters) {
-  std::string nn_graph_path = parameters.Get<std::string>("nn_graph_path");
   unsigned range = parameters.Get<unsigned>("R");
-  Load_nn_graph(nn_graph_path.c_str());
+  efanna2e::IndexRandom init_index(dimension_, nd_);
+  efanna2e::IndexGraph index(dimension_, nd_, metric_,
+                             (efanna2e::Index *)(&init_index));
+  efanna2e::Parameters paras;
+  paras.Set<unsigned>("K", 200);
+  paras.Set<unsigned>("L", 200);
+  paras.Set<unsigned>("iter", 12);
+  paras.Set<unsigned>("S", 10);
+  paras.Set<unsigned>("R", 100);
+  index.Build(n, data, paras);
+  final_graph_ = index.final_graph_;
   data_ = data;
   init_graph(parameters);
   SimpleNeighbor *cut_graph_ = new SimpleNeighbor[nd_ * (size_t)range];
@@ -385,8 +397,7 @@ void IndexSSG::Build(size_t n, const float *data,
     avg += size;
   }
   avg /= 1.0 * nd_;
-  printf("Degree Statistics: Max = %d, Min = %d, Avg = %d\n",
-         max, min, avg);
+  printf("Degree Statistics: Max = %d, Min = %d, Avg = %d\n", max, min, avg);
 
   /* Buggy!
   strong_connect(parameters);
@@ -418,7 +429,7 @@ void IndexSSG::Search(const float *query, const float *x, size_t K,
   std::mt19937 rng(rand());
   GenRandom(rng, init_ids.data(), L, (unsigned)nd_);
   assert(eps_.size() < L);
-  for(unsigned i=0; i<eps_.size(); i++){
+  for (unsigned i = 0; i < eps_.size(); i++) {
     init_ids[i] = eps_[i];
   }
 
@@ -473,7 +484,7 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
   std::mt19937 rng(rand());
   GenRandom(rng, init_ids.data(), L, (unsigned)nd_);
   assert(eps_.size() < L);
-  for(unsigned i=0; i<eps_.size(); i++){
+  for (unsigned i = 0; i < eps_.size(); i++) {
     init_ids[i] = eps_[i];
   }
 
@@ -697,52 +708,52 @@ void IndexSSG::DFS_expand(const Parameters &parameter) {
   unsigned range = parameter.Get<unsigned>("R");
 
   std::vector<unsigned> ids(nd_);
-  for(unsigned i=0; i<nd_; i++){
-    ids[i]=i;
+  for (unsigned i = 0; i < nd_; i++) {
+    ids[i] = i;
   }
   std::random_shuffle(ids.begin(), ids.end());
-  for(unsigned i=0; i<n_try; i++){
+  for (unsigned i = 0; i < n_try; i++) {
     eps_.push_back(ids[i]);
-    //std::cout << eps_[i] << '\n';
+    // std::cout << eps_[i] << '\n';
   }
 #pragma omp parallel for
-  for(unsigned i=0; i<n_try; i++){
+  for (unsigned i = 0; i < n_try; i++) {
     unsigned rootid = eps_[i];
     boost::dynamic_bitset<> flags{nd_, 0};
     std::queue<unsigned> myqueue;
     myqueue.push(rootid);
-    flags[rootid]=true;
+    flags[rootid] = true;
 
     std::vector<unsigned> uncheck_set(1);
 
-    while(uncheck_set.size() >0){
-      while(!myqueue.empty()){
-        unsigned q_front=myqueue.front();
+    while (uncheck_set.size() > 0) {
+      while (!myqueue.empty()) {
+        unsigned q_front = myqueue.front();
         myqueue.pop();
 
-        for(unsigned j=0; j<final_graph_[q_front].size(); j++){
+        for (unsigned j = 0; j < final_graph_[q_front].size(); j++) {
           unsigned child = final_graph_[q_front][j];
-          if(flags[child])continue;
+          if (flags[child]) continue;
           flags[child] = true;
           myqueue.push(child);
         }
       }
 
       uncheck_set.clear();
-      for(unsigned j=0; j<nd_; j++){
-        if(flags[j])continue;
+      for (unsigned j = 0; j < nd_; j++) {
+        if (flags[j]) continue;
         uncheck_set.push_back(j);
       }
-      //std::cout <<i<<":"<< uncheck_set.size() << '\n';
-      if(uncheck_set.size()>0){
-        for(unsigned j=0; j<nd_; j++){
-          if(flags[j] && final_graph_[j].size()<range){
+      // std::cout <<i<<":"<< uncheck_set.size() << '\n';
+      if (uncheck_set.size() > 0) {
+        for (unsigned j = 0; j < nd_; j++) {
+          if (flags[j] && final_graph_[j].size() < range) {
             final_graph_[j].push_back(uncheck_set[0]);
             break;
           }
         }
         myqueue.push(uncheck_set[0]);
-        flags[uncheck_set[0]]=true;
+        flags[uncheck_set[0]] = true;
       }
     }
   }

@@ -7,6 +7,7 @@ list(
     index_random.cpp
     index_ssg.cpp
     util.cpp
+    index_graph.cpp
 )
 
 add_library(${PROJECT_NAME} ${CPP_SOURCES})

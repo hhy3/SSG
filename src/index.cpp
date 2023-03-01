@@ -6,7 +6,7 @@
 #include <index.h>
 namespace efanna2e {
 Index::Index(const size_t dimension, const size_t n, Metric metric = L2)
-    : dimension_(dimension), nd_(n), has_built(false) {
+    : dimension_(dimension), nd_(n), has_built(false), metric_(metric) {
   switch (metric) {
     case L2:
       distance_ = new DistanceL2();

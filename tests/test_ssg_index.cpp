@@ -7,8 +7,8 @@
 #include "util.h"
 
 int main(int argc, char** argv) {
-  if (argc < 7) {
-    std::cout << "./run data_file nn_graph_path L R Angle save_graph_file [seed]"
+  if (argc < 6) {
+    std::cout << "./run data_file L R Angle save_graph_file [seed]"
               << std::endl;
     exit(-1);
   }
@@ -26,15 +26,13 @@ int main(int argc, char** argv) {
   data_load = efanna2e::load_data(argv[1], points_num, dim);
   data_load = efanna2e::data_align(data_load, points_num, dim);
 
-  std::string nn_graph_path(argv[2]);
-  unsigned L = (unsigned)atoi(argv[3]);
-  unsigned R = (unsigned)atoi(argv[4]);
-  float A = (float)atof(argv[5]);
+  unsigned L = (unsigned)atoi(argv[2]);
+  unsigned R = (unsigned)atoi(argv[3]);
+  float A = (float)atof(argv[4]);
 
   std::cout << "L = " << L << ", ";
   std::cout << "R = " << R << ", ";
   std::cout << "Angle = " << A << std::endl;
-  std::cout << "KNNG = " << nn_graph_path << std::endl;
 
   efanna2e::IndexRandom init_index(dim, points_num);
   efanna2e::IndexSSG index(dim, points_num, efanna2e::L2,
@@ -45,9 +43,8 @@ int main(int argc, char** argv) {
   paras.Set<unsigned>("R", R);
   paras.Set<float>("A", A);
   paras.Set<unsigned>("n_try", 10);
-  paras.Set<std::string>("nn_graph_path", nn_graph_path);
 
-  std::cerr << "Output SSG Path: " << argv[6] << std::endl;
+  std::cerr << "Output SSG Path: " << argv[5] << std::endl;
 
   auto s = std::chrono::high_resolution_clock::now();
   index.Build(points_num, data_load, paras);

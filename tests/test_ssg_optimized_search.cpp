@@ -8,20 +8,36 @@
 #include "index_ssg.h"
 #include "util.h"
 
-void save_result(char* filename, std::vector<std::vector<unsigned> >& results) {
-  std::ofstream out(filename, std::ios::binary | std::ios::out);
 
-  for (unsigned i = 0; i < results.size(); i++) {
-    unsigned GK = (unsigned)results[i].size();
-    out.write((char*)&GK, sizeof(unsigned));
-    out.write((char*)results[i].data(), GK * sizeof(unsigned));
+template <typename T>
+T* load_data(const char* filename, unsigned& num, unsigned& dim) {
+  std::ifstream in(filename, std::ios::binary);
+  if (!in.is_open()) {
+    std::cerr << "Open file error" << std::endl;
+    exit(-1);
   }
-  out.close();
-}
 
+  in.read((char*)&dim, 4);
+
+  in.seekg(0, std::ios::end);
+  std::ios::pos_type ss = in.tellg();
+  size_t fsize = (size_t)ss;
+  num = (unsigned)(fsize / (dim + 1) / 4);
+
+  T* data = new T[(size_t)num * (size_t)dim];
+
+  in.seekg(0, std::ios::beg);
+  for (size_t i = 0; i < num; i++) {
+    in.seekg(4, std::ios::cur);
+    in.read((char*)(data + i * dim), dim * sizeof(float));
+  }
+  in.close();
+
+  return data;
+}
 int main(int argc, char** argv) {
   if (argc < 7) {
-    std::cout << "./run data_file query_file ssg_path L K result_path [seed]"
+    std::cout << "./run data_file query_file ssg_path L K gt_path [seed]"
               << std::endl;
     exit(-1);
   }
@@ -36,15 +52,19 @@ int main(int argc, char** argv) {
 
   unsigned points_num, dim;
   float* data_load = nullptr;
-  data_load = efanna2e::load_data(argv[1], points_num, dim);
+  data_load = ::load_data<float>(argv[1], points_num, dim);
   data_load = efanna2e::data_align(data_load, points_num, dim);
 
   std::cerr << "Query Path: " << argv[2] << std::endl;
 
   unsigned query_num, query_dim;
   float* query_load = nullptr;
-  query_load = efanna2e::load_data(argv[2], query_num, query_dim);
+  query_load = ::load_data<float>(argv[2], query_num, query_dim);
   query_load = efanna2e::data_align(query_load, query_num, query_dim);
+
+  std::cerr << "GT Path: " << argv[6] << std::endl;
+  unsigned gt_k;
+  int* gt = ::load_data<int>(argv[6], query_num, gt_k);
 
   assert(dim == query_dim);
 
@@ -84,9 +104,17 @@ int main(int argc, char** argv) {
   auto e = std::chrono::high_resolution_clock::now();
 
   std::chrono::duration<double> diff = e - s;
-  std::cerr << "Search Time: " << diff.count() << std::endl;
+  printf("QPS: %lf\n", query_num / diff.count());
 
-  save_result(argv[6], res);
+  int cnt = 0;
+  for (int i = 0; i < query_num; ++i) {
+    std::set<int> st(gt + i * gt_k, gt + i * gt_k + K);
+    for (auto x : res[i]) {
+      if (st.count(x)) cnt++;
+    }
+  }
+  printf("Recall: %lf\n", double(cnt) / query_num / K);
+
 
   return 0;
 }

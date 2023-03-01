@@ -34,7 +34,6 @@ class IndexSSG : public Index {
                           const Parameters &parameters, unsigned *indices);
   void OptimizeGraph(const float *data);
 
- protected:
   typedef std::vector<std::vector<unsigned>> CompactGraph;
   typedef std::vector<SimpleNeighbors> LockGraph;
   typedef std::vector<nhood> KNNGraph;
@@ -65,7 +64,6 @@ class IndexSSG : public Index {
                 const Parameters &parameter);
   void DFS_expand(const Parameters &parameter);
 
- private:
   unsigned width;
   unsigned ep_; //not in use
   std::vector<unsigned> eps_;
@@ -75,6 +73,7 @@ class IndexSSG : public Index {
   size_t data_len;
   size_t neighbor_len;
   KNNGraph nnd_graph;
+  Metric metric_;
 };
 
 }  // namespace efanna2e

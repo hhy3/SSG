@@ -41,12 +41,12 @@ class Index {
 
   inline const float *GetDataset() const { return data_; }
 
- protected:
   const size_t dimension_;
   const float *data_;
   size_t nd_;
   bool has_built;
   Distance *distance_;
+  Metric metric_;
 };
 
 }  // namespace efanna2e

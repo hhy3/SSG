@@ -31,4 +31,4 @@ add_subdirectory(src)
 add_subdirectory(tests)
 
 # Compile flags
-add_definitions(-std=c++11 -O3 -lboost -ltcmalloc_minimal -march=native -Wall -DINFO)
+add_definitions(-std=c++17 -O3 -lboost -ltcmalloc_minimal -march=native -Wall -DINFO)
