@@ -24,7 +24,7 @@ struct Neighbor {
   bool flag;
 
   Neighbor() = default;
-  Neighbor(unsigned id, float distance, bool f)
+  Neighbor(unsigned id, float distance, bool f = true)
       : id{id}, distance{distance}, flag(f) {}
 
   inline bool operator<(const Neighbor &other) const {
@@ -155,6 +155,71 @@ static inline int InsertIntoPool(Neighbor *addr, unsigned K, Neighbor nn) {
   addr[right] = nn;
   return right;
 }
+class NeighborSet {
+ public:
+  explicit NeighborSet(size_t capacity = 0)
+      : size_(0), capacity_(capacity), data_(capacity_ + 1) {}
+
+  void insert(SimpleNeighbor nbr) {
+    if (size_ == capacity_ && nbr.distance >= data_[size_ - 1].distance) {
+      return;
+    }
+    int lo = 0, hi = size_;
+    while (lo < hi) {
+      int mid = (lo + hi) >> 1;
+      if (data_[mid].distance > nbr.distance) {
+        hi = mid;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    std::memmove(&data_[lo + 1], &data_[lo], (size_ - lo) * sizeof(Neighbor));
+    data_[lo] = {nbr.id, nbr.distance, false};
+    if (size_ < capacity_) {
+      size_++;
+    }
+    if (lo < cur_) {
+      cur_ = lo;
+    }
+  }
+
+  SimpleNeighbor pop() {
+    data_[cur_].flag = false;
+    size_t pre = cur_;
+    while (cur_ < size_ && !data_[cur_].flag) {
+      cur_++;
+    }
+    return {data_[pre].id, data_[pre].distance};
+  }
+
+  bool has_next() const { return cur_ < size_; }
+
+  int id(int i) { return data_[i].id; }
+
+  std::vector<int> get_topk(int k) {
+    std::vector<int> ans(k);
+    for (int i = 0; i < k; ++i) {
+      ans[i] = data_[i].id;
+    }
+    return ans;
+  }
+
+  size_t size() const { return size_; }
+  size_t capacity() const { return capacity_; }
+
+  Neighbor &operator[](size_t i) { return data_[i]; }
+
+  const Neighbor &operator[](size_t i) const { return data_[i]; }
+
+  void clear() {
+    size_ = 0;
+    cur_ = 0;
+  }
+
+ private:
+  size_t size_, capacity_, cur_;
+  std::vector<Neighbor> data_;
+};
 
 }  // namespace efanna2e
 
