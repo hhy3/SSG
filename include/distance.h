@@ -15,6 +15,10 @@ class Distance {
  public:
   virtual float compare(const float *a, const float *b,
                         unsigned length) const = 0;
+  virtual float compare2(const float *a, const uint16_t *b,
+                         unsigned length) const {
+    return 0.0;
+  }
   virtual ~Distance() {}
 };
 
@@ -126,6 +130,38 @@ class DistanceL2 : public Distance {
 #endif
 
     return result;
+  }
+  float compare2(const float *a, const uint16_t *b, unsigned d) const {
+    const float *x = (const float *)a;
+    const uint8_t *y = (const uint8_t *)b;
+    __m256 sum1 = _mm256_setzero_ps(), sum2 = _mm256_setzero_ps();
+    const float *end = x + d;
+    while (x < end) {
+      {
+        auto xx = _mm256_loadu_ps(x);
+        x += 8;
+        auto zz = _mm_loadu_si128((__m128i *)y);
+        auto yy = _mm256_cvtph_ps(zz);
+        y += 16;
+        auto t = _mm256_sub_ps(xx, yy);
+        sum1 = _mm256_add_ps(sum1, _mm256_mul_ps(t, t));
+      }
+      {
+        auto xx = _mm256_loadu_ps(x);
+        x += 8;
+        auto zz = _mm_loadu_si128((__m128i *)y);
+        auto yy = _mm256_cvtph_ps(zz);
+        y += 16;
+        auto t = _mm256_sub_ps(xx, yy);
+        sum2 = _mm256_add_ps(sum2, _mm256_mul_ps(t, t));
+      }
+    }
+    sum1 = _mm256_add_ps(sum1, sum2);
+    auto sumh = _mm_add_ps(_mm256_castps256_ps128(sum1),
+                           _mm256_extractf128_ps(sum1, 1));
+    auto tmp1 = _mm_add_ps(sumh, _mm_movehl_ps(sumh, sumh));
+    auto tmp2 = _mm_add_ps(tmp1, _mm_movehdup_ps(tmp1));
+    return _mm_cvtss_f32(tmp2);
   }
 };
 

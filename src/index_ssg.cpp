@@ -477,13 +477,11 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
                                   const Parameters &parameters,
                                   unsigned *indices) {
   unsigned L = parameters.Get<unsigned>("L_search");
-  DistanceFastL2 *dist_fast = (DistanceFastL2 *)distance_;
   NeighborSet retset(L);
   boost::dynamic_bitset<> vis{nd_, 0};
   for (auto ep : eps_) {
-    float *x = (float *)(opt_graph_ + node_size * ep);
-    float norm_x = *x;
-    float dist = dist_fast->compare(x + 1, query, norm_x, (unsigned)dimension_);
+    uint16_t *x = (uint16_t *)(opt_graph_ + node_size * ep);
+    float dist = distance_->compare2(query, x, (unsigned)dimension_);
     retset.insert({ep, dist});
     vis[ep] = true;
   }
@@ -497,10 +495,8 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
       unsigned v = neighbors[m];
       if (vis[v]) continue;
       vis[v] = true;
-      float *data = (float *)(opt_graph_ + node_size * v);
-      float norm = *data;
-      data++;
-      float dist = dist_fast->compare(query, data, norm, (unsigned)dimension_);
+      uint16_t *data = (uint16_t *)(opt_graph_ + node_size * v);
+      float dist = distance_->compare2(query, data, (unsigned)dimension_);
       retset.insert({v, dist});
     }
   }
@@ -512,18 +508,21 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
 void IndexSSG::OptimizeGraph(const float *data) {  // use after build or load
 
   data_ = data;
-  data_len = (dimension_ + 1) * sizeof(float);
+  auto new_dim = (dimension_ + 15) / 16 * 16;
+  data_len = new_dim * sizeof(uint16_t);
   neighbor_len = (width + 1) * sizeof(unsigned);
   node_size = data_len + neighbor_len;
   opt_graph_ = (char *)malloc(node_size * nd_);
-  DistanceFastL2 *dist_fast = (DistanceFastL2 *)distance_;
+  memset(opt_graph_, 0, node_size * nd_);
   for (unsigned i = 0; i < nd_; i++) {
     char *cur_node_offset = opt_graph_ + i * node_size;
-    float cur_norm = dist_fast->norm(data_ + i * dimension_, dimension_);
-    std::memcpy(cur_node_offset, &cur_norm, sizeof(float));
-    std::memcpy(cur_node_offset + sizeof(float), data_ + i * dimension_,
-                data_len - sizeof(float));
-
+    const float *vec_from = data_ + i * dimension_;
+    uint16_t *code_to = (uint16_t *)cur_node_offset;
+    for (int j = 0; j < dimension_; ++j) {
+      auto x = _mm256_loadu_ps(vec_from + j);
+      auto y = _mm256_cvtps_ph(x, 0);
+      _mm_storeu_si128((__m128i *)(code_to + j), y);
+    }
     cur_node_offset += data_len;
     unsigned k = final_graph_[i].size();
     std::memcpy(cur_node_offset, &k, sizeof(unsigned));
